@@ -20,7 +20,8 @@ carCard = driver.find_elements(By.XPATH, '//*[@class="sc-fbKhjd jxKUBR"]')
 for car in carCard:
     #model = car.find_elements(By.XPATH,'//a[@data-testid="search-listing-title"]/h3')
     #car_names = [element.find_elements(By.TAG_NAME,'h3').text for element in model]
-    elements = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//a[@data-testid='search-listing-title']/h3")))
+    elements = wait.until(
+        EC.presence_of_all_elements_located((By.XPATH, "//a[@data-testid='search-listing-title']/h3")))
     price_element = driver.find_element(By.XPATH, '//span[@class="sc-ePDLzJ gfdAKZ"]')
     # Extract car names from the elements
     car_names = set(element.text for element in elements if element.text.strip())
