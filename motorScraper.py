@@ -271,6 +271,7 @@ with concurrent.futures.ThreadPoolExecutor() as executor:
             if check_current_page(current_page):
                 print('same page')
                 pass
+            #fix this area tommorow
 
 # Clean up
 driver.quit()
