@@ -130,8 +130,6 @@ with open(csv_file_path, 'w', newline='', encoding='utf-8') as csvfile:
                 # Wait for the specific iframe
                 wait.until(EC.frame_to_be_available_and_switch_to_it((By.ID, 'lpSS_68456113145')))
 
-                # Rest of your code for scraping car details on the new page goes here
-
         except TimeoutException:
             print(f"Timeout waiting for car elements on page {current_page}. Proceeding to the next page.")
 
