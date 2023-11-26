@@ -1,7 +1,9 @@
 import csv
 import re
+import time
+from selenium.common.exceptions import TimeoutException
 from selenium import webdriver
-from selenium.common import NoSuchElementException, TimeoutException
+from selenium.common import NoSuchElementException, TimeoutException, StaleElementReferenceException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.wait import WebDriverWait
@@ -10,35 +12,41 @@ from webdriver_manager.chrome import ChromeDriverManager
 
 option = webdriver.ChromeOptions()
 option.add_argument("start-maximized")
+option.add_argument("--disable-notifications")  # Example option to disable notifications
+
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=option)
 
-driver.get('https://www.autotrader.co.uk/car-search?advertising-location=at_cars&include-delivery-option=on&make=BMW&model=1%20Series&postcode=NW1%209PQ&year-to=2023')
+driver.get(
+    'https://www.autotrader.co.uk/car-search?advertising-location=at_cars&include-delivery-option=on&make=BMW&model=1%20Series&postcode=NW1%209PQ&year-to=2023')
 
 # Wait for the 'Accept All' button to be clickable
 try:
     # Wait for the container to be present
     div_element = WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located((By.ID, 'sp_message_container_908484'))
+        EC.presence_of_element_located((By.CSS_SELECTOR, 'html[lang="en"].sp-message-open'))
     )
 
-    # Switch to the iframe
-    iframe = div_element.find_element(By.TAG_NAME, 'iframe')
-    driver.switch_to.frame(iframe)
+    # Wait for the main iframe to be present
+    main_iframe_locator = (By.ID, 'sp_message_iframe_939601')
+    WebDriverWait(driver, 20).until(EC.frame_to_be_available_and_switch_to_it(main_iframe_locator))
 
-    # Find the "Accept All" button within the iframe
-    accept_all_button = WebDriverWait(driver, 10).until(
-        EC.element_to_be_clickable((By.XPATH, '//button[@title="Accept All"]'))
-    )
-
+    # Wait for the "Accept All" button to be present and clickable
+    accept_all_button_locator = (By.XPATH, '//button[@title="Accept All" and @aria-label="Accept All"]')
+    accept_all_button = WebDriverWait(driver, 10).until(EC.element_to_be_clickable(accept_all_button_locator))
     # Click the "Accept All" button
     accept_all_button.click()
+    print("Accepted cookies.")
 
     # Switch back to the default content
     driver.switch_to.default_content()
-    print("Terms and conditions accepted.")
+
+    time.sleep(4)
 except (TimeoutException, NoSuchElementException):
     print("No 'Accept All' button found or not clickable. Proceeding without accepting.")
+    driver.quit()
+    raise
+
 
 # Wait for at least one car element to be present
 wait = WebDriverWait(driver, 10)
@@ -63,28 +71,32 @@ with open(csv_file_path, 'w', newline='', encoding='utf-8') as csvfile:
     while current_page <= total_pages:
         try:
             # Wait for at least one car element to be present
-            car_elements = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'li.sc-fbKhjd.jxKUBR')))
-
+            car_elements = wait.until(
+                EC.presence_of_all_elements_located((By.CLASS_NAME, 'sc-fbKhjd.KtDDQ')))
             car_cards = []
 
             for car_element in car_elements:
                 try:
                     # Wait for the car name element to be present within the car element
                     car_name_element = WebDriverWait(car_element, 5).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, 'a.sc-kAyceB h3'))
+                        EC.visibility_of_element_located((By.CSS_SELECTOR, 'ul.sc-dlWCHZ li:nth-child(3)'))
                     )
                     car_name = car_name_element.text.strip()
 
-                    mileage_element = car_element.find_element(By.CSS_SELECTOR, 'ul.sc-dPZUQH li:nth-child(3)')
+                    # Find Mileage Element
+                    mileage_element = car_element.find_element(By.CSS_SELECTOR, 'ul.sc-dlWCHZ li:nth-child(3)')
                     mileage = mileage_element.text.strip()
 
-                    year_element = car_element.find_element(By.CSS_SELECTOR, 'ul.sc-dPZUQH li:nth-child(1)')
+                    # Find Year Element
+                    year_element = car_element.find_element(By.CSS_SELECTOR, 'ul.sc-dlWCHZ li:nth-child(1)')
                     year = year_element.text.strip()
 
+                    # Find Price Element
                     price_element = car_element.find_element(By.CSS_SELECTOR,
-                                                             'section.sc-kqGoIF div.sc-dxcDKg p.sc-iGgWBj span.sc-ePDLzJ')
+                                                             'section.sc-gvZAcH p.sc-iGgWBj span.sc-bVVIoq')
                     price = price_element.text.strip()
 
+                    # Find Link Element
                     link_element = car_element.find_element(By.CSS_SELECTOR, 'a[data-testid="search-listing-title"]')
                     listing_url = link_element.get_attribute('href')
                     listing = link_element.get_attribute('href').strip()
