@@ -62,7 +62,7 @@ current_page = 1
 i = 1  # Move the counter outside the loop
 
 # Create a new CSV file and write the header
-csv_file_path = 'car_details.csv'
+csv_file_path = '../car_details.csv'
 with open(csv_file_path, 'w', newline='', encoding='utf-8') as csvfile:
     fieldnames = ['Id', 'Name', 'Mileage', 'Year', 'Price', 'URL']
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)

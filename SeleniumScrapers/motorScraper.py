@@ -171,7 +171,7 @@ driver.get(url)
 
 time.sleep(3)
 # Set-up Path to CSV
-csv_file_path = 'car_details.csv'
+csv_file_path = '../car_details.csv'
 
 # Find Input Fields
 search_postcode = driver.find_element(By.CSS_SELECTOR, 'input[id="searchPostcode"]')
