@@ -1,3 +1,4 @@
+import re
 from playwright.sync_api import sync_playwright
 import time
 
@@ -8,6 +9,24 @@ def wait_for_element(page, selector, timeout=5000):
     except Exception as e:
         print(f"Error: {str(e)}")
         print(f"Element with selector '{selector}' not found within the specified timeout.")
+        return None
+
+
+def extract_element_text(page, selector, timeout=5000):
+    try:
+        # Use page.$ to find the element
+        element_handle = page.wait_for_selector(selector, timeout=timeout)
+
+        # Check if the element is found
+        if element_handle:
+            # Use page.evaluate to extract the text content
+            element_text = page.evaluate('(element) => element.textContent', element_handle)
+            return element_text
+        else:
+            print(f"Element with selector '{selector}' not found within the specified timeout.")
+            return None
+    except Exception as e:
+        print(f"Error: {str(e)}")
         return None
 
 def search_in_iframe(page, iframe_selector, selector_to_wait_for, button, button_selector, timeout=5000):
@@ -118,6 +137,7 @@ with sync_playwright() as p:
     iframe_selector = 'iframe[title="SP Consent Message"]'
     cookies_text = 'p.message-component'
     accept_button = 'div.message-row button[title="Accept All"]'
+    page_element = 'p[data-testid="pagination-show"]'
 
     # Load up the page
     page.goto(
@@ -130,28 +150,23 @@ with sync_playwright() as p:
     # find cars
     page.wait_for_selector('section[data-testid="trader-seller-listing"]')
 
+    #find page
+    page_extract = extract_element_text(page, page_element)
+    page_number = int(re.search(r'\b\d+\b', page_extract[::-1]).group()[::-1]) if page_extract and re.search(
+        r'\b\d+\b', page_extract) else None
+
+    print(page_number)
+
     # Extract details from each listing on the page
-    listings = page.query_selector_all('section[data-testid="trader-seller-listing"]')
-    all_listing_details = []
+    for current_page in range(page_number):
+        listings = page.query_selector_all('section[data-testid="trader-seller-listing"]')
+        all_listing_details = []
 
-    for idx, listing in enumerate(listings, start=1):
-        # Extract details and append to the list
-        details = extract_listing_details(listing)
-        all_listing_details.append(details)
+        for idx, listing in enumerate(listings, start=1):
+            details = extract_listing_details(listing)
+            all_listing_details.append(details)
 
-    # Print or process the list of listing details
-    for idx, details in enumerate(all_listing_details, start=1):
-        print(f"Listing {idx} Details:")
-        print(f"Title: {details['title']}")
-        print(f"Subtitle: {details['subtitle']}")
-        print(f"Price: {details['price']}")
-        print(f"Mileage: {details['mileage']}")
-        print(f"Year: {details['year']}")
-        print(f"Location: {details['location']}")
-        print(f"URL: {details['url']}")
-        print("\n")
 
     time.sleep(50)
 
-    # Close the browser
     browser.close()
