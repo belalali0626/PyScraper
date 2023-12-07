@@ -2,6 +2,7 @@ import csv
 import re
 from playwright.sync_api import sync_playwright
 import time
+from bs4 import BeautifulSoup
 
 
 def wait_for_element(page, selector, timeout=5000):
@@ -92,6 +93,13 @@ def extract_listing_details(listing_element):
     # Extract the listing URL
     raw_url = listing_element.query_selector('a[data-testid="search-listing-title"]').get_attribute('href')
 
+    # Extract the transmission
+    transmission = wait_for_selector_content(listing_element, 'ul.sc-eBHhsj.fPmFbb li:nth-child(6)')
+
+    # Extract the fuel type
+    fuel_type = wait_for_selector_content(listing_element, 'ul.sc-eBHhsj.fPmFbb li:nth-child(7)')
+
+
     # Process values before adding to the dictionary
     mileage = mileage.replace('Mileage', '').strip() if mileage else None
     year = year.replace('Year and plate', '').strip() if year else None
@@ -114,6 +122,8 @@ def extract_listing_details(listing_element):
         'mileage': mileage,
         'year': year,
         'location': location,
+        'transmission': transmission,
+        'fuel_type': fuel_type,
     }
 
     return listing_details
@@ -132,17 +142,15 @@ def wait_for_selector_content(page, selector, timeout=5000):
             element_handle.dispose()
     return None
 
+
 def write_to_csv(data, filename='car_listings.csv'):
-    with open(filename, mode='a', newline='', encoding='utf-8') as file:
+    with open(filename, mode='a+', newline='', encoding='utf-8') as file:
         writer = csv.DictWriter(file, fieldnames=data[0].keys())
 
-        # If the file is empty, write the header
         if file.tell() == 0:
             writer.writeheader()
 
-        # Write the data
         writer.writerows(data)
-
 
 with sync_playwright() as p:
     # Browser setup
@@ -187,8 +195,8 @@ with sync_playwright() as p:
         click_button(page, next_button, 5000)
         wait_for_element(page, 'section[data-testid="trader-seller-listing"]', 5000)
 
-        # calls function every 10 pages
-        if current_page % 10 == 0:
+        # Write the data to CSV incrementally (e.g., every 10 pages)
+        if current_page % 2 == 0:
             write_to_csv(all_listing_details)
             all_listing_details = []  # clear the list for the next batch
 
