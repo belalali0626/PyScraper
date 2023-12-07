@@ -1,3 +1,4 @@
+import csv
 import re
 from playwright.sync_api import sync_playwright
 import time
@@ -131,6 +132,17 @@ def wait_for_selector_content(page, selector, timeout=5000):
             element_handle.dispose()
     return None
 
+def write_to_csv(data, filename='car_listings.csv'):
+    with open(filename, mode='a', newline='', encoding='utf-8') as file:
+        writer = csv.DictWriter(file, fieldnames=data[0].keys())
+
+        # If the file is empty, write the header
+        if file.tell() == 0:
+            writer.writeheader()
+
+        # Write the data
+        writer.writerows(data)
+
 
 with sync_playwright() as p:
     # Browser setup
@@ -175,15 +187,9 @@ with sync_playwright() as p:
         click_button(page, next_button, 5000)
         wait_for_element(page, 'section[data-testid="trader-seller-listing"]', 5000)
 
-    for idx, details in enumerate(all_listing_details, start=1):
-        print(f"Listing {idx} Details:")
-        print(f"Title: {details['title']}")
-        print(f"Subtitle: {details['subtitle']}")
-        print(f"Price: {details['price']}")
-        print(f"Mileage: {details['mileage']}")
-        print(f"Year: {details['year']}")
-        print(f"Location: {details['location']}")
-        print(f"URL: {details['url']}")
-        print("\n")
+        # calls function every 10 pages
+        if current_page % 10 == 0:
+            write_to_csv(all_listing_details)
+            all_listing_details = []  # clear the list for the next batch
 
     browser.close()
