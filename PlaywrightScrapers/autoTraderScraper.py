@@ -4,6 +4,7 @@ from playwright.sync_api import sync_playwright
 import time
 from bs4 import BeautifulSoup
 
+from ProxyManager import get_next_proxy, mark_used
 
 def wait_for_element(page, selector, timeout=5000):
     try:
@@ -143,18 +144,25 @@ def wait_for_selector_content(page, selector, timeout=5000):
     return None
 
 
-def write_to_csv(data, filename='car_listings.csv'):
+import csv
+
+def write_to_csv(data, filename='car_listings_text.csv'):
     with open(filename, mode='a+', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=data[0].keys())
+        writer = csv.writer(file)
 
+        # Check if the file is empty and write headers
         if file.tell() == 0:
-            writer.writeheader()
+            header = data[0].keys()
+            writer.writerow(header)
 
-        writer.writerows(data)
+        # Write data to the CSV file
+        for row in data:
+            writer.writerow(row.values())
 
 with sync_playwright() as p:
+    new_proxy = get_next_proxy()
     # Browser setup
-    browser = p.chromium.launch(headless=False)
+    browser = p.chromium.launch(headless=False, proxy={"server":"51.159.66.158:3128"})
     context = browser.new_context()
     page = context.new_page()
 
@@ -168,7 +176,7 @@ with sync_playwright() as p:
     # Load up the page
     page.goto(
         'https://www.autotrader.co.uk/car-search?postcode=NW1%209PQ&year-to=2023&make=BMW&model=1%20Series'
-        '&advertising-location=at_cars&page=1')
+        '&advertising-location=at_cars&page=1', timeout=50000)
 
     # wait for the iframe, then look for the cookies text within iframe, then the parameters
     search_in_iframe(page, iframe_selector, cookies_text, True, accept_button, timeout=15000)
@@ -190,14 +198,25 @@ with sync_playwright() as p:
         for idx, listing in enumerate(listings, start=1):
             details = extract_listing_details(listing)
             all_listing_details.append(details)
-            print('done all')
 
         click_button(page, next_button, 5000)
         wait_for_element(page, 'section[data-testid="trader-seller-listing"]', 5000)
 
+        print(f'Current Page is : {current_page}')
+
         # Write the data to CSV incrementally (e.g., every 10 pages)
-        if current_page % 2 == 0:
+        if current_page % 10 == 0:
             write_to_csv(all_listing_details)
             all_listing_details = []  # clear the list for the next batch
 
+        if current_page % 30 == 0:
+            new_proxy = get_next_proxy()
+
+            if new_proxy:
+                # Close the existing context
+                context.close()
+
+                context.close()
+                context = browser.new_context(proxy={'server': new_proxy})
+                page = context.new_page()
     browser.close()
