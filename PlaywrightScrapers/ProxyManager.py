@@ -1,3 +1,4 @@
+import random
 
 available_proxies = [
     "socks5://192.111.135.17:18302",
@@ -210,9 +211,12 @@ used_proxies = [
 
 ]
 
+
 def get_next_proxy():
     if not available_proxies:
         return None
+
+    random.shuffle(available_proxies)
 
     proxy = mark_used()
     return proxy
