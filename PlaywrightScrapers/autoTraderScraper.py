@@ -158,7 +158,7 @@ def write_to_csv(data, filename='car_listings_text.csv'):
             writer.writerow(row.values())
 
 
-def create_flare_instance(url, proxy, increment):
+def create_flare_instance(url, proxy=None, increment=None):
     solver = FlareSolverr()
 
     try:
@@ -182,7 +182,7 @@ def create_flare_instance(url, proxy, increment):
 
 def main():
     with sync_playwright() as p:
-        new_proxy = get_next_proxy()
+        #new_proxy = get_next_proxy()
         # Browser setup
         browser = p.chromium.launch(headless=False)
         context = browser.new_context()
@@ -235,20 +235,20 @@ def main():
                 print(f'Current Page is : {current_page}')
 
                 # Write the data to CSV incrementally (e.g., every 10 pages)
-                if current_page % 10 == 0:
-                    write_to_csv(all_listing_details)
-                    all_listing_details = []  # clear the list for the next batch
+                #if current_page % 10 == 0:
+                    #write_to_csv(all_listing_details)
+                    #all_listing_details = []  # clear the list for the next batch
 
-                if current_page % 30 == 0:
-                    new_proxy = get_next_proxy()
+                #if current_page % 30 == 0:
+                    #new_proxy = get_next_proxy()
 
-                    if new_proxy:
+                    #if new_proxy:
                         # Close the existing context
-                        context.close()
+                        #context.close()
 
-                        context.close()
-                        context = browser.new_context(proxy={'server': new_proxy})
-                        page = context.new_page()
+                        #context.close()
+                        #context = browser.new_context(proxy={'server': new_proxy})
+                        #page = context.new_page()
 
             browser.close()
 
