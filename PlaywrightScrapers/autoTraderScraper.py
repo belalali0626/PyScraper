@@ -2,9 +2,9 @@ import csv
 import re
 from playwright.sync_api import sync_playwright
 import time
-from bs4 import BeautifulSoup
-
+from fspy import FlareSolverr
 from ProxyManager import get_next_proxy, mark_used
+
 
 def wait_for_element(page, selector, timeout=5000):
     try:
@@ -100,7 +100,6 @@ def extract_listing_details(listing_element):
     # Extract the fuel type
     fuel_type = wait_for_selector_content(listing_element, 'ul.sc-eBHhsj.fPmFbb li:nth-child(7)')
 
-
     # Process values before adding to the dictionary
     mileage = mileage.replace('Mileage', '').strip() if mileage else None
     year = year.replace('Year and plate', '').strip() if year else None
@@ -144,7 +143,6 @@ def wait_for_selector_content(page, selector, timeout=5000):
     return None
 
 
-import csv
 
 def write_to_csv(data, filename='car_listings_text.csv'):
     with open(filename, mode='a+', newline='', encoding='utf-8') as file:
@@ -159,64 +157,101 @@ def write_to_csv(data, filename='car_listings_text.csv'):
         for row in data:
             writer.writerow(row.values())
 
-with sync_playwright() as p:
-    new_proxy = get_next_proxy()
-    # Browser setup
-    browser = p.chromium.launch(headless=False, proxy={"server":"51.159.66.158:3128"})
-    context = browser.new_context()
-    page = context.new_page()
 
-    # Selectors
-    iframe_selector = 'iframe[title="SP Consent Message"]'
-    cookies_text = 'p.message-component'
-    accept_button = 'div.message-row button[title="Accept All"]'
-    page_element = 'p[data-testid="pagination-show"]'
-    next_button = 'a[data-testid="pagination-next"]'
+def create_flare_instance(url, proxy, increment):
+    solver = FlareSolverr()
 
-    # Load up the page
-    page.goto(
-        'https://www.autotrader.co.uk/car-search?postcode=NW1%209PQ&year-to=2023&make=BMW&model=1%20Series'
-        '&advertising-location=at_cars&page=1', timeout=50000)
+    try:
+        if proxy is None:
+            session_id = solver.create_session()
+        else:
+            session_id = solver.create_session(increment, proxy)
 
-    # wait for the iframe, then look for the cookies text within iframe, then the parameters
-    search_in_iframe(page, iframe_selector, cookies_text, True, accept_button, timeout=15000)
+        response = solver.request_get(url)
 
-    # find cars
-    page.wait_for_selector('section[data-testid="trader-seller-listing"]')
+        if response.status == "ok":
+            return response
+        else:
+            print(f"Request to {url} was not successful. Status code: ok")
+            return None
 
-    # find page
-    page_extract = extract_element_text(page, page_element)
-    page_number = int(re.search(r'\b\d+\b', page_extract[::-1]).group()[::-1]) if page_extract and re.search(
-        r'\b\d+\b', page_extract) else None
+    except Exception as e:
+        print(f"Error handling Cloudflare challenge: {e}")
+        return None
 
-    all_listing_details = []
 
-    # Extract details from each listing on the page
-    for current_page in range(page_number):
-        listings = page.query_selector_all('section[data-testid="trader-seller-listing"]')
+def main():
+    with sync_playwright() as p:
+        new_proxy = get_next_proxy()
+        # Browser setup
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context()
+        page = context.new_page()
 
-        for idx, listing in enumerate(listings, start=1):
-            details = extract_listing_details(listing)
-            all_listing_details.append(details)
+        # Selectors
+        iframe_selector = 'iframe[title="SP Consent Message"]'
+        cookies_text = 'p.message-component'
+        accept_button = 'div.message-row button[title="Accept All"]'
+        page_element = 'p[data-testid="pagination-show"]'
+        next_button = 'a[data-testid="pagination-next"]'
 
-        click_button(page, next_button, 5000)
-        wait_for_element(page, 'section[data-testid="trader-seller-listing"]', 5000)
+        # Load up the page
+        page_url = 'https://www.autotrader.co.uk/car-search?postcode=NW1%209PQ&year-to=2023&make=BMW&model=1%20Series' \
+                   '&advertising-location=at_cars&page=1'
 
-        print(f'Current Page is : {current_page}')
+        # Handle Cloudflare challenges
+        handled_response_content = create_flare_instance(page_url)
 
-        # Write the data to CSV incrementally (e.g., every 10 pages)
-        if current_page % 10 == 0:
-            write_to_csv(all_listing_details)
-            all_listing_details = []  # clear the list for the next batch
+        if handled_response_content is not None:
+            # Continue with your existing script
 
-        if current_page % 30 == 0:
-            new_proxy = get_next_proxy()
+            # Load up the page
+            page.goto(page_url, timeout=50000)
 
-            if new_proxy:
-                # Close the existing context
-                context.close()
+            # wait for the iframe, then look for the cookies text within iframe, then the parameters
+            search_in_iframe(page, iframe_selector, cookies_text, True, accept_button, timeout=15000)
 
-                context.close()
-                context = browser.new_context(proxy={'server': new_proxy})
-                page = context.new_page()
-    browser.close()
+            # find cars
+            page.wait_for_selector('section[data-testid="trader-seller-listing"]')
+
+            # find page
+            page_extract = extract_element_text(page, page_element)
+            page_number = int(re.search(r'\b\d+\b', page_extract[::-1]).group()[::-1]) if page_extract and re.search(
+                r'\b\d+\b', page_extract) else None
+
+            all_listing_details = []
+
+            # Extract details from each listing on the page
+            for current_page in range(page_number):
+                listings = page.query_selector_all('section[data-testid="trader-seller-listing"]')
+
+                for idx, listing in enumerate(listings, start=1):
+                    details = extract_listing_details(listing)
+                    all_listing_details.append(details)
+
+                click_button(page, next_button, 5000)
+                wait_for_element(page, 'section[data-testid="trader-seller-listing"]', 5000)
+
+                print(f'Current Page is : {current_page}')
+
+                # Write the data to CSV incrementally (e.g., every 10 pages)
+                if current_page % 10 == 0:
+                    write_to_csv(all_listing_details)
+                    all_listing_details = []  # clear the list for the next batch
+
+                if current_page % 30 == 0:
+                    new_proxy = get_next_proxy()
+
+                    if new_proxy:
+                        # Close the existing context
+                        context.close()
+
+                        context.close()
+                        context = browser.new_context(proxy={'server': new_proxy})
+                        page = context.new_page()
+
+            browser.close()
+
+
+if __name__ == "__main__":
+    main()
