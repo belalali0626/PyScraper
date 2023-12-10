@@ -158,7 +158,7 @@ def write_to_csv(data, filename='car_listings_text.csv'):
             writer.writerow(row.values())
 
 
-def create_flare_instance(url, proxy="None", increment="None", max_retries=5):
+def create_flare_instance(url, proxy=None, increment=None, max_retries=5):
     solver = FlareSolverr()
 
     for retry_count in range(max_retries + 1):
@@ -178,7 +178,7 @@ def create_flare_instance(url, proxy="None", increment="None", max_retries=5):
                 return None
 
         except Exception as e:
-            print(f"Error handling Cloudflare challenge: {e} - Trying new proxy")
+            print(f"Error handling Cloudflare challenge: {e} - current proxy is {proxy} -Trying new proxy")
             proxy = get_next_proxy()
 
     return None
@@ -199,10 +199,11 @@ def main():
         accept_button = 'div.message-row button[title="Accept All"]'
         page_element = 'p[data-testid="pagination-show"]'
         next_button = 'a[data-testid="pagination-next"]'
+        current_page = 1
 
         # Load up the page
         page_url = 'https://www.autotrader.co.uk/car-search?postcode=NW1%209PQ&year-to=2023&make=BMW&model=1%20Series' \
-                   '&advertising-location=at_cars&page=1'
+                   '&advertising-location=at_cars&page=100'
 
         # Handle Cloudflare challenges
         handled_response_content = create_flare_instance(page_url, new_proxy, f"Instance: {increment_value}")
@@ -244,16 +245,33 @@ def main():
                     write_to_csv(all_listing_details)
                     all_listing_details = []  # clear the list for the next batch
 
-                if current_page % 30 == 0:
+                if current_page % 96 == 0:
                     new_proxy = get_next_proxy()
-
+                    increment_value = +1
                     if new_proxy:
                         # Close the existing context
-                        context.close()
 
                         context.close()
-                        context = browser.new_context(proxy={'server': new_proxy})
+                        browser.close()
+                        browser = p.chromium.launch(headless=False)
+                        context = browser.new_context()
                         page = context.new_page()
+                        page_url = f'https://www.autotrader.co.uk/car-search?postcode=NW1%209PQ&year-to=2023&make=BMW&model=1%20Series' \
+                                   f'&advertising-location=at_cars&page={current_page}'
+                        handled_response_content = create_flare_instance(page_url, new_proxy,
+                                                                         f"Instance: {increment_value}")
+                        page.goto(page_url, timeout=50000)
+
+                        if handled_response_content is not None:
+                            print(f'Proxy Change Success - Starting on next batch of pages')
+
+                            # wait for the iframe, then look for the cookies text within iframe, then the parameters
+                            search_in_iframe(page, iframe_selector, cookies_text, True, accept_button, timeout=15000)
+                            # find cars
+                            page.wait_for_selector('section[data-testid="trader-seller-listing"]')
+
+                        else:
+                            print(f'Proxy Change Failed')
 
             browser.close()
 
