@@ -158,31 +158,36 @@ def write_to_csv(data, filename='car_listings_text.csv'):
             writer.writerow(row.values())
 
 
-def create_flare_instance(url, proxy=None, increment=None):
+def create_flare_instance(url, proxy="None", increment="None", max_retries=5):
     solver = FlareSolverr()
 
-    try:
-        if proxy is None:
-            session_id = solver.create_session()
-        else:
-            session_id = solver.create_session(increment, proxy)
+    for retry_count in range(max_retries + 1):
+        try:
+            if proxy is None:
+                session_id = solver.create_session()
+            else:
+                session_id = solver.create_session(increment, proxy)
 
-        response = solver.request_get(url)
+            response = solver.request_get(url)
 
-        if response.status == "ok":
-            return response
-        else:
-            print(f"Request to {url} was not successful. Status code: ok")
-            return None
+            if response.status == "ok":
+                print(f"Request to {url} was successful, Status code: {response.status}")
+                return response
+            else:
+                print(f"Request to {url} was not successful. Status code: {response.status}")
+                return None
 
-    except Exception as e:
-        print(f"Error handling Cloudflare challenge: {e}")
-        return None
+        except Exception as e:
+            print(f"Error handling Cloudflare challenge: {e} - Trying new proxy")
+            proxy = get_next_proxy()
+
+    return None
 
 
 def main():
     with sync_playwright() as p:
-        #new_proxy = get_next_proxy()
+        new_proxy = get_next_proxy()
+        increment_value = 1
         # Browser setup
         browser = p.chromium.launch(headless=False)
         context = browser.new_context()
@@ -200,7 +205,7 @@ def main():
                    '&advertising-location=at_cars&page=1'
 
         # Handle Cloudflare challenges
-        handled_response_content = create_flare_instance(page_url)
+        handled_response_content = create_flare_instance(page_url, new_proxy, f"Instance: {increment_value}")
 
         if handled_response_content is not None:
             # Continue with your existing script
@@ -235,20 +240,20 @@ def main():
                 print(f'Current Page is : {current_page}')
 
                 # Write the data to CSV incrementally (e.g., every 10 pages)
-                #if current_page % 10 == 0:
-                    #write_to_csv(all_listing_details)
-                    #all_listing_details = []  # clear the list for the next batch
+                if current_page % 10 == 0:
+                    write_to_csv(all_listing_details)
+                    all_listing_details = []  # clear the list for the next batch
 
-                #if current_page % 30 == 0:
-                    #new_proxy = get_next_proxy()
+                if current_page % 30 == 0:
+                    new_proxy = get_next_proxy()
 
-                    #if new_proxy:
+                    if new_proxy:
                         # Close the existing context
-                        #context.close()
+                        context.close()
 
-                        #context.close()
-                        #context = browser.new_context(proxy={'server': new_proxy})
-                        #page = context.new_page()
+                        context.close()
+                        context = browser.new_context(proxy={'server': new_proxy})
+                        page = context.new_page()
 
             browser.close()
 
